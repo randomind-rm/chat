@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Randomind Chat</title>
+
+    <style>
+
+        body {
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 10px;
+        }
+
+        #text {
+            width: 300px;
+        }
+
+        #messages {
+            width: 400px;
+            height: 300px;
+
+            border: 1px solid white;
+
+            overflow-y: auto;
+
+            padding: 10px;
+
+            margin-top: 15px;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+    </style>
+</head>
+
+
+<body>
+
+    <input
+        type="text"
+        id="text"
+        placeholder="Write your message"
+    >
+
+    <button onclick="sendMessage()">
+        Send
+    </button>
+
+
+    <div id="status">
+        Connecting...
+    </div>
+
+
+    <div id="messages"></div>
+
+
+    <!-- Supabase -->
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+
+    <script>
+
+        const SUPABASE_URL =
+            "https://zbuxmiupwpsvjqnmwdeh.supabase.co";
+
+        const SUPABASE_KEY =
+            "sb_publishable_rjH6PAgXrKenfi0JJM3GAQ_FzYJmAd6";
+
+
+        const supabaseClient =
+            window.supabase.createClient(
+                SUPABASE_URL,
+                SUPABASE_KEY
+            );
+
+
+        const messages =
+            document.getElementById("messages");
+
+        const status =
+            document.getElementById("status");
+
+
+        // Show a message
+
+        function showMessage(text) {
+
+            const message =
+                document.createElement("p");
+
+            message.textContent = text;
+
+            messages.appendChild(message);
+
+            messages.scrollTop =
+                messages.scrollHeight;
+        }
+
+
+        // Load existing messages
+
+        async function loadMessages() {
+
+            const { data, error } =
+                await supabaseClient
+                    .from("messages")
+                    .select("content, created_at")
+                    .order("created_at", {
+                        ascending: true
+                    });
+
+
+            if (error) {
+
+                console.error(error);
+
+                status.textContent =
+                    "Error loading messages.";
+
+                return;
+            }
+
+
+            messages.innerHTML = "";
+
+
+            data.forEach(function(message) {
+
+                showMessage(message.content);
+
+            });
+
+
+            status.textContent = "Connected!";
+        }
+
+
+        // Send message
+
+        async function sendMessage() {
+
+            const input =
+                document.getElementById("text");
+
+            const text =
+                input.value.trim();
+
+
+            if (text === "") {
+                return;
+            }
+
+
+            const { error } =
+                await supabaseClient
+                    .from("messages")
+                    .insert({
+                        content: text
+                    });
+
+
+            if (error) {
+
+                console.error(error);
+
+                status.textContent =
+                    "Error sending message.";
+
+                return;
+            }
+
+
+            input.value = "";
+
+        }
+
+
+        // ENTER = SEND
+
+        document
+            .getElementById("text")
+            .addEventListener(
+                "keydown",
+                function(event) {
+
+                    if (event.key === "Enter") {
+
+                        sendMessage();
+
+                    }
+
+                }
+            );
+
+
+        // Load old messages
+
+        loadMessages();
+
+
+        // Listen for new messages
+
+        supabaseClient
+            .channel("chat")
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "messages"
+                },
+                function(payload) {
+
+                    showMessage(
+                        payload.new.content
+                    );
+
+                }
+            )
+            .subscribe(
+                function(statusValue) {
+
+                    console.log(
+                        "Realtime:",
+                        statusValue
+                    );
+
+                }
+            );
+
+    </script>
+
+</body>
+
+</html>
